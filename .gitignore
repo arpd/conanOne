@@ -1,1 +1,6 @@
 .direnv/
+out/
+node_modules/
+.vscode-test/
+*.vsix
+src/test/suite/conan-project/.venv

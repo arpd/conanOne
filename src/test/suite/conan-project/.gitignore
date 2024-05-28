@@ -1,0 +1,6 @@
+build/
+conan-env/*
+!conan-env/.conan
+conan-env/.conan/*
+!conan-env/.conan
+!conan-env/.conan/profiles
