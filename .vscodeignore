@@ -1,0 +1,16 @@
+**/*.ts
+**/tsconfig.json
+!file.ts
+.envrc
+.direnv
+.vscode
+.vscode-test
+.vscode-test.js
+.eslintrc.js*
+.gitignore
+**/test/*
+flake.*
+*.vsix
+src
+node_modules
+out/test
