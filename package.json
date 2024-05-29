@@ -1,9 +1,9 @@
 {
-	"name": "vscode-conan-ext",
-	"displayName": "vscode-conan-ext",
-	"description": "Conan 1.54 extension",
-	"version": "0.0.1",
-	"publisher": "vscode-samples",
+	"name": "conanone",
+	"displayName": "conanOne",
+	"description": "Conan 1.5x project integration",
+	"version": "0.1.0",
+	"publisher": "svbtl",
 	"repository": "https://github.com/Microsoft/vscode-extension-samples/vscode-conan-ext",
 	"engines": {
 		"vscode": "^1.74.0"
@@ -16,14 +16,61 @@
 	"contributes": {
 		"commands": [
 			{
-				"command": "extension.helloWorld",
-				"title": "Hello World"
+				"command": "extension.conanSetUser",
+				"title": "conan/set user"
+			},
+			{
+				"command": "extension.conanSetChannel",
+				"title": "conan/set channel"
 			},
 			{
 				"command": "extension.conanCreate",
-				"title": "conan create"
+				"title": "conan/create"
+			},
+			{
+				"command": "extension.conanSearch",
+				"title": "conan/search"
+			},
+			{
+				"command": "extension.conanInfo",
+				"title": "conan/info"
+			},
+			{
+				"command": "extension.conanSelectProject",
+				"title": "conan/select project"
+			},
+			{
+				"command": "extension.conanOpenBuildDirTerm",
+				"title": "conan/open project build directory"
+			},
+			{
+				"command": "extension.conanOpenPackageDirTerm",
+				"title": "conan/open project package directory"
 			}
-		]
+		],
+		"configuration": {
+			"title": "ConanOne",
+			"properties": {
+				"conanOne.general.conanUserHome": {
+					"type": "string",
+					"default": null,
+					"markdownDescription": "Path to the conan cache to use\n\n- **Overrides** `CONAN_USER_HOME` in your environment if set.\n\n- **Overridden** by using `conan select cache`.",
+					"order": 0
+				},
+				"conanOne.general.channel": {
+					"type": "string",
+					"default": null,
+					"markdownDescription": "Conan **channel** to tag builds with\n\n_e.g._ `conan create . USER/channel`",
+					"order": 1
+				},
+				"conanOne.general.user": {
+					"type": "string",
+					"default": null,
+					"markdownDescription": "Conan **user** to tag builds with\n\n_e.g._ `conan create . user/CHANNEL`",
+					"order": 2
+				}
+			}
+		}
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
@@ -46,5 +93,9 @@
 		"mocha": "^10.2.0",
 		"source-map-support": "^0.5.12",
 		"typescript": "^5.4.2"
+	},
+	"dependencies": {
+		"@vscode/vsce": "^2.26.1",
+		"discord.js": "^14.15.2"
 	}
 }

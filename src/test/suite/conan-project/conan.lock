@@ -1,0 +1,15 @@
+{
+ "graph_lock": {
+  "nodes": {
+   "0": {
+    "ref": "foobar/0.1",
+    "options": "",
+    "path": "conanfile.py",
+    "context": "host"
+   }
+  },
+  "revisions_enabled": false
+ },
+ "version": "0.4",
+ "profile_host": "[settings]\narch=armv8\narch_build=armv8\nbuild_type=Release\ncompiler=clang\ncompiler.libcxx=libstdc++\ncompiler.version=16\nos=Macos\nos_build=Macos\n[options]\n[build_requires]\n[env]\n"
+}
