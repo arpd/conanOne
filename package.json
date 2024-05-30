@@ -16,58 +16,63 @@
 	"contributes": {
 		"commands": [
 			{
-				"command": "extension.conanSetUser",
-				"title": "conan/set user"
-			},
-			{
-				"command": "extension.conanSetChannel",
-				"title": "conan/set channel"
-			},
-			{
 				"command": "extension.conanCreate",
 				"title": "conan/create"
 			},
 			{
-				"command": "extension.conanSearch",
-				"title": "conan/search"
-			},
-			{
-				"command": "extension.conanInfo",
-				"title": "conan/info"
-			},
-			{
 				"command": "extension.conanSelectProject",
-				"title": "conan/select project"
+				"title": "conan/select_project"
+			},
+			{
+				"command": "extension.conanSelectProfile",
+				"title": "conan/select_profile"
 			},
 			{
 				"command": "extension.conanOpenBuildDirTerm",
-				"title": "conan/open project build directory"
+				"title": "conan/find_build_dir"
 			},
 			{
 				"command": "extension.conanOpenPackageDirTerm",
-				"title": "conan/open project package directory"
+				"title": "conan/find_package_dir"
 			}
 		],
 		"configuration": {
 			"title": "ConanOne",
 			"properties": {
-				"conanOne.general.conanUserHome": {
+				"conanOne.general.preferEnv": {
+					"type": "boolean",
+					"default": true,
+					"markdownDescription": "For settings with an equivalent environment variable, determines which value is used.",
+					"order": 0
+				},
+				"conanOne.general.conanCachePath": {
 					"type": "string",
 					"default": null,
-					"markdownDescription": "Path to the conan cache to use\n\n- **Overrides** `CONAN_USER_HOME` in your environment if set.\n\n- **Overridden** by using `conan select cache`.",
-					"order": 0
+					"markdownDescription": "Path to the conan cache to use\n\nOverridden by `CONAN_USER_HOME` if `conanOne.general.preferEnv` is set to `true`",
+					"order": 1
+				},
+				"conanOne.general.projectPath": {
+					"type": "string",
+					"default": null,
+					"markdownDescription": "Path to the conan project (e.g. directory containing `conanfile.py`\n\nOverridden by `CONANONE_PROJ_PATH` if `conanOne.general.preferEnv` is set to `true`",
+					"order": 2
 				},
 				"conanOne.general.channel": {
 					"type": "string",
 					"default": null,
-					"markdownDescription": "Conan **channel** to tag builds with\n\n_e.g._ `conan create . USER/channel`",
-					"order": 1
+					"markdownDescription": "Conan **channel** to tag builds with\n\n_e.g._ `conan create . USER/channel`\n\nOverridden by `CONANONE_CHANNEL` if `conanOne.general.preferEnv` is set to `true`",
+					"order": 3
 				},
 				"conanOne.general.user": {
 					"type": "string",
 					"default": null,
-					"markdownDescription": "Conan **user** to tag builds with\n\n_e.g._ `conan create . user/CHANNEL`",
-					"order": 2
+					"markdownDescription": "Conan **user** to tag builds with\n\n_e.g._ `conan create . user/CHANNEL`\n\nOverridden by `CONANONE_USER` if `conanOne.general.preferEnv` is set to `true`",
+					"order": 4
+				},
+				"conanOne.dev.venv-preamble": {
+					"type": "boolean",
+					"default": false,
+					"order": 5
 				}
 			}
 		}
