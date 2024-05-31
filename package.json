@@ -16,6 +16,14 @@
 	"contributes": {
 		"commands": [
 			{
+				"command": "extension.configure",
+				"title": "conan/configure"
+			},
+			{
+				"command": "extension.configureInteractive",
+				"title": "conan/configure_interactive"
+			},
+			{
 				"command": "extension.conanCreate",
 				"title": "conan/create"
 			},

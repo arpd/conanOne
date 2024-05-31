@@ -3,6 +3,8 @@
 import * as vscode from 'vscode';
 import * as cp from "child_process";
 import * as fs from "fs";
+import * as path from "path";
+import { profile } from 'console';
 
 let config: ConanOneConfiguration;
 
@@ -11,7 +13,8 @@ interface ConanOneConfiguration {
 	user: string | undefined,
 	channel: string | undefined,
 	proj_path: string | undefined,
-	profile: string | undefined,
+	profile_build: string | undefined,
+	profile_host: string | undefined,
 	venv_preamble: boolean
 }
 
@@ -41,6 +44,7 @@ function dirExists(path: string | undefined): boolean {
 const INPUT_PROMPTS = {
 	"user": "Set user tag (as in 'USER@channel')",
 	"channel": "Set channel tag (as in 'USER@channel')",
+	"conan_cache_path": "Set CONAN_USER_HOME",
 };
 interface UserInputValidator {
 	(input: string): boolean
@@ -82,6 +86,9 @@ async function populateConfiguration(ask: boolean): Promise<ConanOneConfiguratio
 		vscode.window.showWarningMessage(header, options);
 		conan_cache_path = process.env.HOME;
 	}
+	if (ask) {
+		conan_cache_path = await getUserInput(INPUT_PROMPTS.conan_cache_path);
+	}
 
 	let user = pickPreferred(process.env.CONANONE_USER, settings.get<string>('general.user'), preferEnv);
 	if (!configurationValueIsValid(user)) {
@@ -89,19 +96,16 @@ async function populateConfiguration(ask: boolean): Promise<ConanOneConfiguratio
 		const options: vscode.MessageOptions = {
 			detail: 'CONANONE_USER not present in the environment or is invalid.\nSetting general.user is unset or is invalid.'
 		};
-		if (ask) {
-			user = await getUserInput(INPUT_PROMPTS.user);
-		}
 		// Emit a warning, we couldn't find a 'user' value
 		vscode.window.showWarningMessage(header, options);
 		user = undefined;
 	}
+	if (ask) {
+		user = await getUserInput(INPUT_PROMPTS.user);
+	}
 
 	let channel = pickPreferred(process.env.CONANONE_CHANNEL, settings.get<string>('general.channel'), preferEnv);
 	if (!configurationValueIsValid(channel)) {
-		if (ask) {
-			user = await getUserInput(INPUT_PROMPTS.channel);
-		}
 		const header = 'Unable to find conan channel tag';
 		const options: vscode.MessageOptions = {
 			detail: 'CONANONE_CHANNEL not present in the environment or is invalid.\nSetting general.channel is unset or is invalid.'
@@ -110,20 +114,21 @@ async function populateConfiguration(ask: boolean): Promise<ConanOneConfiguratio
 		vscode.window.showWarningMessage(header, options);
 		channel = undefined;
 	}
+	if (ask) {
+		user = await getUserInput(INPUT_PROMPTS.channel);
+	}
 
 	let proj_path = pickPreferred(process.env.CONANONE_PROJ_PATH, settings.get<string>('general.projectPath'), preferEnv);
 	if (!configurationValueIsValid(channel)) {
-		if (ask) {
-			proj_path = await selectConanProject();
-		} else {
-			const header = 'Unable to find conan project';
-			const options: vscode.MessageOptions = {
-				detail: 'CONANONE_PROJECT not present in the environment or is invalid.\nSetting general.projectPath is unset or is invalid.'
-			};
-			// Emit a warning, we couldn't find a valid project path
-			vscode.window.showWarningMessage(header, options);
-			channel = undefined;
-		}
+		const header = 'Unable to find conan project';
+		const options: vscode.MessageOptions = {
+			detail: 'CONANONE_PROJECT not present in the environment or is invalid.\nSetting general.projectPath is unset or is invalid.'
+		};
+		// Emit a warning, we couldn't find a valid project path
+		vscode.window.showWarningMessage(header, options);
+	}
+	if (ask) {
+		proj_path = await selectConanProject();
 	}
 
 	let venv_preamble = settings.get<boolean>('dev.venv-preamble');
@@ -136,10 +141,10 @@ async function populateConfiguration(ask: boolean): Promise<ConanOneConfiguratio
 		user: user,
 		channel: channel,
 		proj_path: proj_path,
-		profile: undefined,
+		profile_build: undefined,
+		profile_host: undefined,
 		venv_preamble: venv_preamble
 	};
-	config.profile = await selectConanProfile();
 
 	return config;
 }
@@ -171,11 +176,11 @@ async function enumerateConanProfiles(): Promise<string[]> {
 	let preamble = "";
 	if (config.venv_preamble) {
 		preamble = `\
-source ${config.proj_path}/.venv/bin/activate;\
+source ${config.proj_path}/.venv/bin/activate; \
 CONAN_USER_HOME=${config.conan_cache_path} `;
 	}
 	const cmd = `${preamble}conan profile list;`;
-	const rv = (await execShell(cmd)).split('\n').slice(0, -1);
+	const rv = (await execShell(cmd)).trim().split('\n');
 	return rv;
 }
 
@@ -185,13 +190,23 @@ async function selectConanProject(): Promise<string | undefined> {
 		canSelectFiles: true,
 		canSelectMany: false,
 		filters: {
-			'conanfile': ['conanfile.py']
-		}
+			'conanfile': ['py', 'txt']
+		},
+		openLabel: 'select'
+
 	};
 	const rv = await vscode.window.showOpenDialog(opendialog_opts);
 	if (rv !== undefined) {
-		let proj_path = rv[0].fsPath;
-		proj_path = proj_path.split('/').slice(0, -1).join('/');
+		const proj_path_segs = rv[0].fsPath.split(path.sep);
+		const filename = proj_path_segs.at(-1);
+		if (filename == undefined) {
+			return undefined;
+		}
+		if (!['conanfile.py', 'conanfile.txt'].includes(filename)) {
+			console.error(`conanOne: Opened file '${filename}' not in ('conanfile.py', 'conanfile.txt')`);
+			return undefined;
+		}
+		const proj_path = proj_path_segs.slice(0, -1).join(path.sep);
 		return proj_path;
 	}
 	return undefined;
@@ -206,9 +221,10 @@ CONAN_USER_HOME=${config.conan_cache_path} `;
 	}
 	const [pkg_name, pkg_version] = await getConanProjectNameAndVersion();
 	const pkg_ref = `${pkg_name}/${pkg_version}@${config.user}/${config.channel}`;
-	const cmd = `${preamble}conan info ${pkg_ref} --paths --only build_folder`;
+	const cmd = `${preamble}conan info ${pkg_ref} -pr:h ${config.profile_host} -pr:b ${config.profile_build} --paths --only package_folder`;
 	if (config.user !== undefined && config.channel !== undefined) {
-		const pkg_path = (await execShell(cmd)).split('\n')[1].split(': ')[1];
+		const output_lns = (await execShell(cmd)).trim().split('\n');
+		const pkg_path = output_lns.at(-1)?.split(': ').at(-1);
 		return pkg_path;
 	}
 
@@ -224,28 +240,29 @@ CONAN_USER_HOME=${config.conan_cache_path} `;
 	}
 	const [pkg_name, pkg_version] = await getConanProjectNameAndVersion();
 	const pkg_ref = `${pkg_name}/${pkg_version}@${config.user}/${config.channel}`;
-	const cmd = `${preamble}conan info ${pkg_ref} --paths --only build_folder`;
+	const cmd = `${preamble}conan info ${pkg_ref} -pr:h ${config.profile_host} -pr:b ${config.profile_build} --paths --only build_folder`;
 	if (config.user !== undefined && config.channel !== undefined) {
-		const build_path = (await execShell(cmd)).split('\n')[1].split(': ')[1];
+		const output_lns = (await execShell(cmd)).trim().split('\n');
+		const build_path = output_lns.at(-1)?.split(': ').at(-1);
 		return build_path;
 	}
 
 	return undefined;
 }
 
-async function presentConanProfileQuickPick(conan_profiles: string[]) {
+async function presentConanProfileQuickPick(conan_profiles: string[], profile_type: string) {
 	const result = await vscode.window.showQuickPick(conan_profiles, {
-		placeHolder: 'Select a conan profile'
+		placeHolder: `Select a ${profile_type} profile`
 	});
 	return result;
 }
 
-async function selectConanProfile(): Promise<string | undefined> {
+async function selectConanProfile(profile_type: string): Promise<string | undefined> {
 	if (config.conan_cache_path === undefined) {
 		return undefined;
 	}
 	const profiles = await enumerateConanProfiles();
-	return await presentConanProfileQuickPick(profiles);
+	return await presentConanProfileQuickPick(profiles, profile_type);
 }
 
 async function conan_create(): Promise<boolean> {
@@ -265,11 +282,19 @@ async function conan_create(): Promise<boolean> {
 
 	// Get a list of profiles from our conan cache
 	const profiles = await enumerateConanProfiles();
-	if (config.profile === undefined || !profiles.includes(config.profile)) {
+	if (config.profile_build === undefined || !profiles.includes(config.profile_build)) {
 		// If the user hasn't configured a profile, or it is invalid, ask them
 		// to choose one now.
-		config.profile = await presentConanProfileQuickPick(profiles);
-		if (config.profile === undefined) {
+		config.profile_build = await presentConanProfileQuickPick(profiles, 'build');
+		if (config.profile_build === undefined) {
+			return false;
+		}
+	}
+	if (config.profile_host === undefined || !profiles.includes(config.profile_host)) {
+		// If the user hasn't configured a profile, or it is invalid, ask them
+		// to choose one now.
+		config.profile_host = await presentConanProfileQuickPick(profiles, 'host');
+		if (config.profile_host === undefined) {
 			return false;
 		}
 	}
@@ -287,29 +312,19 @@ async function conan_create(): Promise<boolean> {
 	if (config.venv_preamble) {
 		terminal.sendText("source .venv/bin/activate"); // FIXME
 	}
-	terminal.sendText(`CONAN_USER_HOME=${config.conan_cache_path} conan create -pr:h ${config.profile} -pr:b ${config.profile} . ${conan_tag}`);
+	terminal.sendText(`CONAN_USER_HOME=${config.conan_cache_path} conan create -pr:h ${config.profile_host} -pr:b ${config.profile_build} . ${conan_tag}`);
 
 	return true;
 }
 
-async function openPathInTerminal(path: string) {
+async function openPathInTerminal(target_path: string) {
 	const terminal = findOrCreateExtensionTerminal(config);
 	if (terminal === undefined) {
 		vscode.window.showErrorMessage('Tried to find or create a terminal, but failed');
 		return;
 	}
 
-	let preamble = "";
-	if (config.venv_preamble) {
-		preamble = `\
-source ${config.proj_path}/.venv/bin/activate;\
-CONAN_USER_HOME=${config.conan_cache_path} `;
-	}
-
-	const [pkg_name, pkg_version] = (await execShell(`${preamble} conan inspect ${config.proj_path} | grep '^name\\|^version'`)).split('\n');
-	const pkg_ref = `${pkg_name.split(': ').at(1)}/${pkg_version.split(': ').at(1)}@${config.user}/${config.channel}`;
-	const pkg_build_path = (await execShell(`${preamble} conan info ${pkg_ref} --paths --only build_folder`)).split('\n').at(1)?.split(': ').at(1);
-	terminal.sendText(`cd ${path}`);
+	terminal.sendText(`cd ${target_path}`);
 	terminal.sendText('ls -la');
 	terminal.show();
 }
@@ -351,8 +366,19 @@ function findOrCreateExtensionTerminal(cfg?: ConanOneConfiguration): vscode.Term
 // provides are called.
 export async function activate(context: vscode.ExtensionContext) {
 	// Load our settings to a configuration object used to run conan commands
+	config = await populateConfiguration(false);
 
-	config = await populateConfiguration(true);
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			'extension.configureInteractive', async () => {
+				config = await populateConfiguration(true);
+			}));
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			'extension.configure', async () => {
+				config = await populateConfiguration(false);
+			}));
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
@@ -363,12 +389,19 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			'extension.conanSelectProfile', async () => {
-				config.profile = await selectConanProfile();
+				config.profile_build = await selectConanProfile('build');
+				config.profile_host = await selectConanProfile('host');
 			}));
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			'extension.conanCreate', async () => {
+				if (config.profile_build === undefined) {
+					config.profile_build = await selectConanProfile('build');
+				}
+				if (config.profile_host === undefined) {
+					config.profile_host = await selectConanProfile('host');
+				}
 				if (!conan_create()) {
 					vscode.window.showErrorMessage('conan create encountered an error.');
 				}
@@ -377,6 +410,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			'extension.conanOpenBuildDirTerm', async () => {
+				if (config.profile_build === undefined) {
+					config.profile_build = await selectConanProfile('build');
+				}
+				if (config.profile_host === undefined) {
+					config.profile_host = await selectConanProfile('host');
+				}
 				const build_path = await getConanProjectBuildPath();
 				if (build_path !== undefined) {
 					await openPathInTerminal(build_path);
@@ -386,6 +425,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand(
 			'extension.conanOpenPackageDirTerm', async () => {
+				if (config.profile_build === undefined) {
+					config.profile_build = await selectConanProfile('build');
+				}
+				if (config.profile_host === undefined) {
+					config.profile_host = await selectConanProfile('host');
+				}
 				const pkg_path = await getConanProjectPackagePath();
 				if (pkg_path !== undefined) {
 					await openPathInTerminal(pkg_path);
