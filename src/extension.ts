@@ -153,12 +153,11 @@ async function getConanProjectNameAndVersion(): Promise<[string, string]> {
 	const terminal = findOrCreateExtensionTerminal(config);
 	let preamble = "";
 	if (config.venv_preamble) {
-		preamble = `\
-source ${config.proj_path}/.venv/bin/activate;\
-CONAN_USER_HOME=${config.conan_cache_path} `;
+		preamble = `source ${config.proj_path}/.venv/bin/activate; `;
 	}
+    const cmd = `${preamble}CONAN_USER_HOME=${config.conan_cache_path} conan inspect ${config.proj_path} | grep '^name\\|^version'`;
 
-	const [pkg_name, pkg_version] = (await execShell(`${preamble}conan inspect ${config.proj_path} | grep '^name\\|^version'`)).split('\n');
+	const [pkg_name, pkg_version] = (await execShell(cmd)).split('\n');
 	return [pkg_name.split(': ')[1], pkg_version.split(': ')[1]];
 }
 
@@ -175,11 +174,9 @@ const execShell = (cmd: string) =>
 async function enumerateConanProfiles(): Promise<string[]> {
 	let preamble = "";
 	if (config.venv_preamble) {
-		preamble = `\
-source ${config.proj_path}/.venv/bin/activate; \
-CONAN_USER_HOME=${config.conan_cache_path} `;
+		preamble = `source ${config.proj_path}/.venv/bin/activate; `;
 	}
-	const cmd = `${preamble}conan profile list;`;
+    const cmd = `${preamble}CONAN_USER_HOME=${config.conan_cache_path} conan profile list`;
 	const rv = (await execShell(cmd)).trim().split('\n');
 	return rv;
 }
@@ -215,13 +212,11 @@ async function selectConanProject(): Promise<string | undefined> {
 async function getConanProjectPackagePath(): Promise<string | undefined> {
 	let preamble = "";
 	if (config.venv_preamble) {
-		preamble = `\
-source ${config.proj_path}/.venv/bin/activate;\
-CONAN_USER_HOME=${config.conan_cache_path} `;
+		preamble = `source ${config.proj_path}/.venv/bin/activate; `;
 	}
 	const [pkg_name, pkg_version] = await getConanProjectNameAndVersion();
 	const pkg_ref = `${pkg_name}/${pkg_version}@${config.user}/${config.channel}`;
-	const cmd = `${preamble}conan info ${pkg_ref} -pr:h ${config.profile_host} -pr:b ${config.profile_build} --paths --only package_folder`;
+	const cmd = `${preamble}CONAN_USER_HOME=${config.conan_cache_path} conan info ${pkg_ref} -pr:h ${config.profile_host} -pr:b ${config.profile_build} --paths --only package_folder`;
 	if (config.user !== undefined && config.channel !== undefined) {
 		const output_lns = (await execShell(cmd)).trim().split('\n');
 		const pkg_path = output_lns.at(-1)?.split(': ').at(-1);
@@ -234,13 +229,11 @@ CONAN_USER_HOME=${config.conan_cache_path} `;
 async function getConanProjectBuildPath(): Promise<string | undefined> {
 	let preamble = "";
 	if (config.venv_preamble) {
-		preamble = `\
-source ${config.proj_path}/.venv/bin/activate;\
-CONAN_USER_HOME=${config.conan_cache_path} `;
+		preamble = `source ${config.proj_path}/.venv/bin/activate; `;
 	}
 	const [pkg_name, pkg_version] = await getConanProjectNameAndVersion();
 	const pkg_ref = `${pkg_name}/${pkg_version}@${config.user}/${config.channel}`;
-	const cmd = `${preamble}conan info ${pkg_ref} -pr:h ${config.profile_host} -pr:b ${config.profile_build} --paths --only build_folder`;
+	const cmd = `${preamble}CONAN_USER_HOME=${config.conan_cache_path} conan info ${pkg_ref} -pr:h ${config.profile_host} -pr:b ${config.profile_build} --paths --only build_folder`;
 	if (config.user !== undefined && config.channel !== undefined) {
 		const output_lns = (await execShell(cmd)).trim().split('\n');
 		const build_path = output_lns.at(-1)?.split(': ').at(-1);
